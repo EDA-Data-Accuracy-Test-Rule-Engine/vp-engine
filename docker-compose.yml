@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: vp_postgres
+    environment:
+      POSTGRES_DB: vpengine
+      POSTGRES_USER: vpuser
+      POSTGRES_PASSWORD: vppass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vpuser -d vpengine"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL Database  
+  mysql:
+    image: mysql:8.0
+    container_name: vp_mysql
+    environment:
+      MYSQL_DATABASE: vpengine
+      MYSQL_USER: vpuser
+      MYSQL_PASSWORD: vppass123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "vpuser", "-pvppass123"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # phpMyAdmin for MySQL management (optional)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: vp_phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: vpuser
+      PMA_PASSWORD: vppass123
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+
+  # pgAdmin for PostgreSQL management (optional)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: vp_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@vpengine.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  mysql_data:
+
+networks:
+  default:
+    name: vpengine_network

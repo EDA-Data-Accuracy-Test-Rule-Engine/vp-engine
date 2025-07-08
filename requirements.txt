@@ -1,0 +1,33 @@
+# Core CLI Framework
+click==8.1.7
+rich==13.7.0
+typer==0.9.0
+tabulate==0.9.0
+
+# Data Processing & Validation
+pandas==2.1.3
+pydantic==1.10.13
+pydantic-settings==2.0.3
+jsonschema==4.19.2
+
+# Database Connectivity
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.7
+pymysql==1.1.0
+
+# AWS Services (Basic)
+boto3==1.29.7
+
+# Configuration & Utilities
+pyyaml==6.0.1
+python-dotenv==1.0.0
+
+# Logging & Progress
+structlog==23.2.0
+tqdm==4.66.1
+
+# Testing
+pytest==7.4.3
+
+# Other utilities
+faker==20.1.0

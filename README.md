@@ -1,208 +1,312 @@
-# EDA-Data-Accuracy-Test-Rule-Engine
+# 🚀 VP Data Accuracy Test Rule Engine
 
-## 📋 Challenge Overview
+## 📋 Tổng quan
 
-This project is a **Data Accuracy Test Rule Engine** developed for the Technology Hackathon 2025 - EDA Challenge Statement #24. The challenge is designed for Data Engineers to create an implementable solution that automates the validation of business logic rules across multiple data tables and columns.
+VP Data Accuracy Test Rule Engine là một hệ thống tương tác mạnh mẽ cho việc kiểm tra chất lượng dữ liệu với các tính năng:
 
-### Problem Statement
+- ✅ **Hỗ trợ đa nguồn dữ liệu**: PostgreSQL, MySQL, CSV
+- 🤖 **Gợi ý quy tắc bằng AI**: Sử dụng OpenAI để phân tích và đề xuất rules
+- 📚 **Quản lý templates**: Tạo và tái sử dụng rule templates
+- ☁️ **Tích hợp AWS**: Lưu trữ rules trên S3, thực thi qua Lambda
+- 📊 **Báo cáo chi tiết**: Kết quả validation với visualizations
+- 🎯 **Giao diện thân thiện**: Interactive CLI với Rich UI
 
-Currently, test scripts are being developed ad-hoc/individually/separately to verify specific and complicated business logic rules. This project aims to create a unified rule engine that can:
-
-- Generate parameterized SQL scripts to validate categorized and simplified rules
-- Support Boolean operators to create complex rules by combining simple rules
-- Provide scalable and flexible rule management
-- Deliver real-time rule execution with minimal latency
-
-## 🎯 Project Goals
-
-The Data Accuracy Test Rule Engine addresses the complete data engineering development and test process:
+## 🏗️ Kiến trúc hệ thống
 
 ```
-Business Logic Rules → Development of Data Jobs & Pipelines → Test Scripts → Data Test Report
+VP Engine
+├── CLI Interface (Rich UI)
+├── AI Rule Engine (OpenAI/Anthropic)
+├── Database Connectors (PostgreSQL/MySQL/CSV)
+├── Validation Engine (Great Expectations)
+├── AWS Services (S3/Lambda)
+└── Rule Management System
 ```
 
-### Key Features
+## 🎯 Quy trình sử dụng
 
-- **Rule Parameterization**: Support for KEYWORDS, NAMES, and VALUES parameters
-- **Boolean Logic**: Complex rule creation using Boolean expressions
-- **Multi-Database Support**: Compatible with DB2, PostgreSQL, AWS Redshift, MSSQL, Oracle
-- **Real-time Processing**: Low latency rule execution
-- **Flexible Configuration**: JSON, XML, SQL stored procedures rule definitions
+### 1. **Lựa chọn nguồn dữ liệu**
+- PostgreSQL Database
+- MySQL Database  
+- CSV File
 
-## 📊 Supported Rule Types
+### 2. **Lựa chọn hành động**
+- 🤖 **Gợi ý quy tắc bằng AI**: AI phân tích dữ liệu và đề xuất rules
+- 📚 **Sử dụng quy tắc có sẵn**: Chọn từ templates đã tạo
+- ✏️ **Tạo quy tắc mới**: Tự định nghĩa rules và lưu lên S3
 
-The engine supports the following categorized and simplified rules:
+### 3. **Thực thi và hiển thị kết quả**
+- Chạy validation rules
+- Hiển thị báo cáo chi tiết
+- Xuất kết quả ra file
 
-| No | Rule Type | Applied On | Description | Examples |
-|----|-----------|------------|-------------|----------|
-| 1 | Value Range | A column | Validate data according to expected ranges | From... to... |
-| 2 | Value Template | A column | Validate regex templates | Telephone number, email format |
-| 3 | Data Continuity/Integrity | A column | Validate data continuity/integrity | Timestamp or id in sequence |
-| 4 | Comparison of Same Statistical/Arithmetic Calculations | 2 groups of columns (same table) | Support statistical and arithmetic calculations, compare results | Sum, min, max, average |
-| 5 | Comparison of Different Statistical/Arithmetic Calculations | 2 groups of columns (different tables) | Support different statistical calculations between groups | Sum of group vs another column |
+## 🚀 Cài đặt nhanh
 
-## 🛠 Technical Requirements
-
-### Programming Languages
-- **SQL**: For rule definition and execution
-- **Python**: For rule engine implementation and orchestration
-
-### Database Support
-The prototype is compatible with at least one of the following database engines:
-- DB2
-- PostgreSQL  
-- AWS Redshift
-- MSSQL
-- Oracle
-
-### Performance Metrics
-
-#### Performance
-- **Processing Speed**: Optimized execution time for rule sets
-- **Latency**: Minimal delay in real-time rule execution
-
-#### Flexibility
-- **Easy Rule Customization**: Parameter-based configuration without code changes
-- **Multiple Definition Formats**: Support for JSON, XML, SQL stored procedures
-- **Scalability**: Handle large numbers of rules efficiently
-
-## 🏗 Architecture
-
-### Rule Parameters
-
-The engine uses three main parameter types:
-
-1. **KEYWORDS**: References to functions for statistical and arithmetic calculations
-   - Pre-built database engine functions
-   - User-defined functions (loaded into database engine)
-   - Note: User-defined function scripts are out of scope
-
-2. **NAMES**: References to specific data objects
-   - Schema, table, and column references
-   - Follows database engine naming conventions
-   - Format: `<schema>.<table>.<column>`
-
-3. **VALUES**: Constant values for different data types
-   - Lists, enumerated data, collections
-   - Compatible with database engine requirements
-
-### Rule Execution Flow
-
-```
-Simple Rules → Boolean Operations → Complex Rules → TRUE/FALSE Result → PASS/FAIL Status
+### Tự động (Khuyến nghị)
+```bash
+git clone <repository>
+cd vp-engine
+chmod +x setup.sh
+./setup.sh
 ```
 
-## 📦 Deliverables
+### Thủ công
+```bash
+# Tạo virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-- [ ] **Principle Design Document**: Comprehensive architecture and design specifications
-- [ ] **Prototype Demo**: Working demonstration including source code and running demo
-- [ ] **Source Code**: Complete implementation with documentation
-- [ ] **Documentation**: Setup, configuration, and usage guides
+# Cài đặt dependencies
+pip install -r requirements.txt
+pip install -e .
 
-## 🚀 Getting Started
+# Tạo directories
+mkdir -p {data,outputs,templates,config}
 
-### Prerequisites
+# Copy environment config
+cp .env.example .env
+
+# Tạo demo data
+python scripts/create_demo_data.py
+```
+
+## ⚙️ Cấu hình
+
+### 1. Environment Variables (.env)
+```bash
+# AWS Configuration (Optional)
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_S3_BUCKET=vp-engine-rules-bucket
+
+# Database Configuration
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=your_username
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=your_database
+
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_username
+MYSQL_PASSWORD=your_password
+MYSQL_DB=your_database
+
+# AI Configuration (Optional)
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+## 🎪 Demo nhanh
 
 ```bash
-# Python dependencies
-pip install -r requirements.txt
+# Bắt đầu workflow tương tác
+vp-engine start
 
-# Database connection setup
-# Configure your database connection parameters
+# Workflow demo:
+# 1. Chọn "3. CSV File"
+# 2. Nhập path: data/sample_employees.csv
+# 3. Thử AI suggestions hoặc existing rules
+# 4. Xem kết quả validation
 ```
 
-### Installation
+## 📚 Các loại validation rules
 
-```bash
-# Clone the repository
-git clone https://github.com/your-username/EDA-Data-Accuracy-Test-Rule-Engine.git
-
-# Navigate to project directory
-cd EDA-Data-Accuracy-Test-Rule-Engine
-
-# Install dependencies
-pip install -r requirements.txt
+### 1. **Null Check**
+```json
+{
+  "rule_type": "null_check",
+  "target_column": "email",
+  "parameters": {}
+}
 ```
 
-### Quick Start
+### 2. **Range Check**
+```json
+{
+  "rule_type": "range_check", 
+  "target_column": "age",
+  "parameters": {
+    "min_value": 18,
+    "max_value": 100
+  }
+}
+```
+
+### 3. **Regex Check**
+```json
+{
+  "rule_type": "regex_check",
+  "target_column": "email",
+  "parameters": {
+    "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+  }
+}
+```
+
+### 4. **Duplicate Check**
+```json
+{
+  "rule_type": "duplicate_check",
+  "target_column": "email",
+  "parameters": {}
+}
+```
+
+### 5. **Uniqueness Check**
+```json
+{
+  "rule_type": "uniqueness_check",
+  "target_column": "user_id", 
+  "parameters": {}
+}
+```
+
+## 🤖 AI Rule Suggestions
+
+Hệ thống sử dụng OpenAI để:
+- Phân tích cấu trúc dữ liệu
+- Nhận diện patterns và anomalies
+- Đề xuất validation rules phù hợp
+- Cung cấp confidence scores
 
 ```python
-# Basic usage example
-from rule_engine import DataAccuracyEngine
-
-# Initialize the engine
-engine = DataAccuracyEngine(database_config)
-
-# Define a simple rule
-rule = {
-    "type": "value_range",
-    "column": "schema.table.column",
-    "min_value": 0,
-    "max_value": 100
+# Ví dụ AI suggestion
+{
+  "column_name": "email",
+  "suggested_rules": [
+    {
+      "name": "Email Format Validation",
+      "rule_type": "regex_check",
+      "confidence": 0.95,
+      "reasoning": "Column contains email-like strings"
+    }
+  ]
 }
-
-# Execute rule
-result = engine.execute_rule(rule)
-print(f"Rule validation: {'PASS' if result else 'FAIL'}")
 ```
 
-## 📁 Project Structure
+## ☁️ AWS Integration
 
+### S3 Rule Storage
+- Tự động backup rules lên S3
+- Versioning và metadata tracking
+- Cross-team rule sharing
+
+### Lambda Execution (Tương lai)
+- Scalable validation execution
+- Scheduled data quality checks
+- Integration với data pipelines
+
+## 📊 Output formats
+
+### Console Display
+- Rich tables với color coding
+- Progress bars và spinners
+- Interactive prompts
+
+### JSON Reports
+```json
+{
+  "summary": {
+    "total_rules": 6,
+    "passed_rules": 4,
+    "failed_rules": 2,
+    "success_rate": 66.7,
+    "data_quality_score": 89.5
+  },
+  "detailed_results": [...]
+}
 ```
-EDA-Data-Accuracy-Test-Rule-Engine/
-│
-├── src/
-│   ├── rule_engine/         # Core rule engine implementation
-│   ├── database/           # Database connectors and utilities
-│   ├── parsers/            # Rule definition parsers (JSON, XML, SQL)
-│   └── validators/         # Rule validation logic
-│
-├── tests/                  # Unit and integration tests
-├── docs/                   # Documentation
-├── examples/              # Example rules and configurations
-├── requirements.txt       # Python dependencies
-└── README.md             # This file
+
+## 🔧 Development
+
+### Project Structure
+```
+src/
+├── cli/main.py           # CLI interface
+├── ai/rule_engine.py     # AI suggestions  
+├── aws/services.py       # AWS integration
+├── core/validation_engine.py  # Core engine
+├── database/connectors.py     # DB connectors
+└── models/validation.py       # Data models
 ```
 
-## 🧪 Testing
-
+### Testing
 ```bash
-# Run unit tests
-python -m pytest tests/
-
-# Run integration tests
-python -m pytest tests/integration/
-
-# Generate test coverage report
-python -m pytest --cov=src tests/
+pytest tests/
 ```
 
-## 📈 Performance Considerations
+### Adding New Rule Types
+1. Extend `RuleType` enum in `models/validation.py`
+2. Add SQL generation logic in `validation_engine.py`
+3. Update CLI interface if needed
 
-- **Optimized SQL Generation**: Efficient query construction for minimal database load
-- **Connection Pooling**: Database connection management for high throughput
-- **Caching**: Rule compilation and result caching for repeated executions
-- **Parallel Processing**: Support for concurrent rule execution
+## 🎯 Use Cases
+
+### 1. **Data Migration Validation**
+- Validate data integrity sau khi migration
+- So sánh source vs target data quality
+
+### 2. **ETL Pipeline Quality Gates**
+- Integration vào CI/CD pipelines
+- Automated data quality checks
+
+### 3. **Regulatory Compliance**
+- GDPR data quality requirements
+- Financial data accuracy standards
+
+### 4. **Data Discovery**
+- Profile unknown datasets
+- Generate documentation tự động
+
+## 🚨 Troubleshooting
+
+### Database Connection Issues
+```bash
+# Test PostgreSQL connection
+psql -h localhost -U username -d database
+
+# Test MySQL connection  
+mysql -h localhost -u username -p database
+```
+
+### AWS Configuration
+```bash
+# Test AWS credentials
+aws sts get-caller-identity
+
+# Check S3 bucket access
+aws s3 ls s3://your-bucket-name
+```
+
+### AI API Issues
+- Verify OpenAI API key
+- Check API rate limits
+- Fallback to rule-based suggestions
+
+## 📈 Roadmap
+
+- [ ] Web UI interface
+- [ ] Real-time streaming validation
+- [ ] Custom rule engine DSL
+- [ ] ML-based anomaly detection
+- [ ] Multi-language support
+- [ ] Enterprise SSO integration
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork repository
+2. Create feature branch
+3. Add tests
+4. Submit pull request
 
-## 📄 License
+## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - xem file LICENSE để biết chi tiết.
 
-## 🏆 Hackathon Information
+## 📞 Support
 
-**Event**: Technology Hackathon 2025  
-**Challenge**: EDA Challenge Statement #24  
-**Category**: Data Engineering  
-**Focus**: Data Accuracy Test Rule Engine Development
-
----
-
-*This project was developed as part of the Technology Hackathon 2025 EDA Challenge to demonstrate skills in data engineering, rule engine development, and automated testing solutions.*
+- 📧 Email: tech@vpbank.com.vn
+- 📖 Documentation: [Wiki link]
+- 🐛 Issues: [GitHub Issues]

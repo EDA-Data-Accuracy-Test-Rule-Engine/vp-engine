@@ -1,0 +1,73 @@
+from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Optional, Union
+from enum import Enum
+from datetime import datetime
+
+class DataSourceType(str, Enum):
+    POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
+    CSV = "csv"
+
+class RuleType(str, Enum):
+    NULL_CHECK = "null_check"
+    RANGE_CHECK = "range_check"
+    REGEX_CHECK = "regex_check"
+    DUPLICATE_CHECK = "duplicate_check"
+    CUSTOM_SQL = "custom_sql"
+    DATA_TYPE_CHECK = "data_type_check"
+    UNIQUENESS_CHECK = "uniqueness_check"
+
+class ColumnInfo(BaseModel):
+    name: str
+    data_type: str
+    nullable: bool
+    sample_values: List[Any] = []
+    unique_count: Optional[int] = None
+    null_count: Optional[int] = None
+    min_value: Optional[Union[int, float, str]] = None
+    max_value: Optional[Union[int, float, str]] = None
+
+class DataSourceConfig(BaseModel):
+    type: DataSourceType
+    name: str
+    connection_params: Dict[str, Any] = {}
+    file_path: Optional[str] = None
+    table_name: Optional[str] = None
+
+class ValidationRule(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    rule_type: RuleType
+    target_column: str
+    parameters: Dict[str, Any] = {}
+    severity: str = "error"  # error, warning, info
+    enabled: bool = True
+    created_by: str = "system"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+class AIRuleSuggestion(BaseModel):
+    column_name: str
+    suggested_rules: List[ValidationRule]
+    confidence_score: float
+    reasoning: str
+
+class RuleSet(BaseModel):
+    name: str
+    description: Optional[str] = None
+    data_source: DataSourceConfig
+    rules: List[ValidationRule]
+    created_at: datetime = Field(default_factory=datetime.now)
+    s3_key: Optional[str] = None
+
+class ValidationResult(BaseModel):
+    rule_name: str
+    rule_id: Optional[str] = None
+    status: str  # PASS, FAIL, ERROR
+    total_rows: int = 0
+    failed_rows: int = 0
+    passed_rows: int = 0
+    error_message: Optional[str] = None
+    execution_time_ms: int = 0
+    details: Dict[str, Any] = {}
+    failed_samples: List[Dict[str, Any]] = []
