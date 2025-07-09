@@ -9,13 +9,11 @@ class DataSourceType(str, Enum):
     CSV = "csv"
 
 class RuleType(str, Enum):
-    NULL_CHECK = "null_check"
-    RANGE_CHECK = "range_check"
-    REGEX_CHECK = "regex_check"
-    DUPLICATE_CHECK = "duplicate_check"
-    CUSTOM_SQL = "custom_sql"
-    DATA_TYPE_CHECK = "data_type_check"
-    UNIQUENESS_CHECK = "uniqueness_check"
+    VALUE_RANGE = "value_range"
+    VALUE_TEMPLATE = "value_template"
+    DATA_CONTINUITY = "data_continuity"
+    SAME_STATISTICAL_COMPARISON = "same_statistical_comparison"
+    DIFFERENT_STATISTICAL_COMPARISON = "different_statistical_comparison"
 
 class ColumnInfo(BaseModel):
     name: str
@@ -41,16 +39,10 @@ class ValidationRule(BaseModel):
     rule_type: RuleType
     target_column: str
     parameters: Dict[str, Any] = {}
-    severity: str = "error"  # error, warning, info
+    severity: str = "error"
     enabled: bool = True
     created_by: str = "system"
     created_at: datetime = Field(default_factory=datetime.now)
-
-class AIRuleSuggestion(BaseModel):
-    column_name: str
-    suggested_rules: List[ValidationRule]
-    confidence_score: float
-    reasoning: str
 
 class RuleSet(BaseModel):
     name: str
@@ -63,11 +55,53 @@ class RuleSet(BaseModel):
 class ValidationResult(BaseModel):
     rule_name: str
     rule_id: Optional[str] = None
-    status: str  # PASS, FAIL, ERROR
+    status: str
     total_rows: int = 0
     failed_rows: int = 0
     passed_rows: int = 0
     error_message: Optional[str] = None
     execution_time_ms: int = 0
     details: Dict[str, Any] = {}
-    failed_samples: List[Dict[str, Any]] = []
+    generated_sql: Optional[str] = None
+
+class StatisticalFunction(str, Enum):
+    SUM = "SUM"
+    AVG = "AVG"
+    MIN = "MIN"
+    MAX = "MAX"
+    COUNT = "COUNT"
+    COUNT_DISTINCT = "COUNT_DISTINCT"
+    STDDEV = "STDDEV"
+    VARIANCE = "VARIANCE"
+
+class ComparisonOperator(str, Enum):
+    EQUAL = "="
+    NOT_EQUAL = "!="
+    GREATER_THAN = ">"
+    LESS_THAN = "<"
+    GREATER_EQUAL = ">="
+    LESS_EQUAL = "<="
+
+class TableReference(BaseModel):
+    schema_name: Optional[str] = None
+    table: str
+    columns: List[str]
+    filter_condition: Optional[str] = None
+
+class BooleanOperator(str, Enum):
+    AND = "AND"
+    OR = "OR"
+    NOT = "NOT"
+
+class ComplexRule(BaseModel):
+    name: str
+    description: Optional[str] = None
+    expression: str
+    rules: Dict[str, ValidationRule]
+    enabled: bool = True
+
+class SQLGenerationContext(BaseModel):
+    database_type: DataSourceType
+    schema_name: Optional[str] = None
+    table_name: str
+    connection_info: Dict[str, Any] = {}

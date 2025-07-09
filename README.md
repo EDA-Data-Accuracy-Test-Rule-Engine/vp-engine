@@ -18,7 +18,7 @@ VP Engine
 ├── CLI Interface (Rich UI)
 ├── AI Rule Engine (OpenAI/Anthropic)
 ├── Database Connectors (PostgreSQL/MySQL/CSV)
-├── Validation Engine (Great Expectations)
+├── Validation Engine (Generate parameterized SQL scripts)
 ├── AWS Services (S3/Lambda)
 └── Rule Management System
 ```

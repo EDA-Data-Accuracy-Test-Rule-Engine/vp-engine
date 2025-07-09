@@ -4,16 +4,18 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
 from pathlib import Path
 import json
 import os
 import subprocess
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from ..config.settings import settings
 from ..models.validation import (
     DataSourceType, DataSourceConfig, ValidationRule, RuleSet, 
-    RuleType, ColumnInfo
+    RuleType, ColumnInfo, ValidationResult
 )
 from ..database.connectors import DatabaseManager
 from ..ai.rule_engine import AIRuleEngine
@@ -189,10 +191,9 @@ def connect_to_data_source(config: DataSourceConfig):
 def select_table_and_show_columns(connector, config: DataSourceConfig) -> Optional[str]:
     """Step 3: Show tables and let user select, then show columns"""
     
-    console.print(f"\n📋 [bold cyan]Step 3: Available Tables and Columns[/bold cyan]")
+    console.print("\n📋 [bold cyan]Step 3: Available Tables and Columns[/bold cyan]")
     
     try:
-        # Get tables
         tables = connector.get_tables()
         
         if not tables:
@@ -218,7 +219,6 @@ def select_table_and_show_columns(connector, config: DataSourceConfig) -> Option
                 except ValueError:
                     console.print("❌ [red]Please enter a valid number[/red]")
         
-        # Show columns
         with console.status(f"Analyzing columns in {table_name}..."):
             columns = connector.get_columns(table_name)
         
@@ -423,33 +423,28 @@ def handle_create_new_rules(config: DataSourceConfig, table_name: str) -> Option
     
     console.print(f"\n✏️ [bold yellow]Create New Rules[/bold yellow]")
     
-    # Get rule set name
     rule_set_name = Prompt.ask("Enter a name for your rule set", default=f"Rules for {table_name}")
     
-    # Create safe filename
     import re
     safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', rule_set_name.lower())
     template_file = f"templates/{safe_name}.json"
     
-    # Create template structure
     template_rule_set = RuleSet(
         name=rule_set_name,
         description=f"Custom validation rules for {table_name}",
         data_source=config,
         rules=[
-            # Example rule
             ValidationRule(
-                name="Example Null Check",
+                name="Example Value Range Check",
                 description="Example rule - replace with your own",
-                rule_type=RuleType.NULL_CHECK,
+                rule_type=RuleType.VALUE_RANGE,
                 target_column="your_column_name",
-                parameters={},
-                enabled=False  # Disabled by default
+                parameters={"min_value": 0, "max_value": 100},
+                enabled=False
             )
         ]
     )
     
-    # Save template file
     Path("templates").mkdir(exist_ok=True)
     
     with open(template_file, 'w') as f:
@@ -461,32 +456,30 @@ def handle_create_new_rules(config: DataSourceConfig, table_name: str) -> Option
     
     console.print(f"📁 [green]Created template file: {template_file}[/green]")
     console.print("\n📝 [yellow]Please edit this file to define your validation rules.[/yellow]")
-    console.print("\n🔧 [cyan]Rule types available:[/cyan]")
-    console.print("  • null_check - Check for null values")
-    console.print("  • range_check - Check numeric ranges") 
-    console.print("  • regex_check - Check string patterns")
-    console.print("  • duplicate_check - Check for duplicates")
-    console.print("  • uniqueness_check - Check uniqueness")
+    console.print("\n🔧 [cyan]Rule types available (Hackathon Challenge):[/cyan]")
+    console.print("  • value_range - Validate data according to expected ranges")
+    console.print("  • value_template - Validate regex templates") 
+    console.print("  • data_continuity - Validate data continuity/integrity")
+    console.print("  • same_statistical_comparison - Same statistical calculations comparison")
+    console.print("  • different_statistical_comparison - Different statistical calculations comparison")
     
     console.print(f"\n📖 [blue]Example file path: {Path(template_file).absolute()}[/blue]")
     
     if Confirm.ask("Open the file in your default editor?"):
         try:
-            if os.name == 'nt':  # Windows
+            if os.name == 'nt':
                 os.startfile(template_file)
-            elif os.name == 'posix':  # macOS and Linux
+            elif os.name == 'posix':
                 subprocess.call(['open', template_file])
         except Exception as e:
             console.print(f"❌ [red]Could not open file automatically: {str(e)}[/red]")
     
     input("\n⏸️  Press Enter when you have finished editing the file...")
     
-    # Ask for S3 upload
     if Confirm.ask("Upload rules to AWS S3 for backup?"):
         try:
             s3_manager = S3RuleManager()
             
-            # Reload the edited file
             with open(template_file, 'r') as f:
                 rule_data = json.load(f)
             
@@ -508,7 +501,6 @@ def handle_create_new_rules(config: DataSourceConfig, table_name: str) -> Option
         except Exception as e:
             console.print(f"❌ [red]S3 upload failed: {str(e)}[/red]")
     
-    # Load and return the edited rules
     try:
         with open(template_file, 'r') as f:
             rule_data = json.load(f)
@@ -546,157 +538,181 @@ def execute_validation_workflow(connector, rule_set: RuleSet, table_name: str):
     
     console.print(f"📊 Executing {len(enabled_rules)} validation rules...")
     
-    # Execute validation using DataFrame approach
     try:
-        # Get data as DataFrame
-        with console.status("Loading data..."):
-            df = connector.get_sample_data(table_name, limit=10000)  # Load more data for validation
+        # Import the new SQL validation engine
+        from src.core.validation_engine import SQLValidationEngine
+        from src.models.validation import SQLGenerationContext
         
-        # Initialize validation engine
-        validation_engine = ValidationEngine()
+        # Create SQL generation context
+        context = SQLGenerationContext(
+            database_type=rule_set.data_source.type,
+            schema_name=None,  # Can be extended to support schema
+            table_name=table_name,
+            connection_info=rule_set.data_source.connection_params
+        )
         
-        # Convert rules to the format expected by ValidationEngine
-        rules_dict = {
-            "rules": {}
-        }
+        # Initialize SQL validation engine
+        sql_engine = SQLValidationEngine(context)
         
-        for rule in enabled_rules:
-            rule_config = {
-                "type": rule.rule_type.value.lower(),
-                "column": rule.target_column,
-                **rule.parameters
-            }
-            
-            # Map our rule types to validation engine types
-            if rule.rule_type == RuleType.NULL_CHECK:
-                rule_config["type"] = "not_null"
-            elif rule.rule_type == RuleType.RANGE_CHECK:
-                rule_config["type"] = "range"
-            elif rule.rule_type == RuleType.REGEX_CHECK:
-                rule_config["type"] = "format"
-                if "pattern" not in rule_config:
-                    rule_config["pattern"] = rule.parameters.get("regex_pattern", ".*")
-            elif rule.rule_type == RuleType.DUPLICATE_CHECK:
-                rule_config["type"] = "unique"
-            elif rule.rule_type == RuleType.ENUM_CHECK:
-                rule_config["type"] = "enum"
-            
-            rules_dict["rules"][rule.name] = rule_config
+        # Generate and execute SQL for each rule
+        validation_results = []
         
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console
         ) as progress:
-            task = progress.add_task("Validating data...", total=1)
+            task = progress.add_task("Generating and executing SQL validation scripts...", total=len(enabled_rules))
             
-            # Execute validation
-            summary = validation_engine.validate_dataframe(df, rules_dict)
-            progress.advance(task)
+            for rule in enabled_rules:
+                try:
+                    # Convert rule to dict format
+                    rule_dict = {
+                        'name': rule.name,
+                        'rule_type': rule.rule_type.value,
+                        'target_column': rule.target_column,
+                        'parameters': rule.parameters
+                    }
+                    
+                    # Generate SQL script
+                    sql_script = sql_engine.generate_validation_sql(rule_dict)
+                    
+                    # Execute SQL and get results
+                    if hasattr(connector, 'execute_query'):
+                        # For database connectors
+                        result_df = connector.execute_query(sql_script)
+                        if not result_df.empty:
+                            result_row = result_df.iloc[0]
+                            validation_result = ValidationResult(
+                                rule_name=rule.name,
+                                rule_id=rule.id,
+                                status="PASS" if result_row.get('status') == 'PASS' else "FAIL",
+                                total_rows=int(result_row.get('total_rows', 0)),
+                                failed_rows=int(result_row.get('failed_rows', 0)),
+                                passed_rows=int(result_row.get('passed_rows', 0)),
+                                generated_sql=sql_script,
+                                details={'sql_result': result_row.to_dict()}
+                            )
+                        else:
+                            validation_result = ValidationResult(
+                                rule_name=rule.name,
+                                rule_id=rule.id,
+                                status="ERROR",
+                                error_message="No results returned from SQL execution",
+                                generated_sql=sql_script
+                            )
+                    else:
+                        # For CSV connectors - show generated SQL only
+                        validation_result = ValidationResult(
+                            rule_name=rule.name,
+                            rule_id=rule.id,
+                            status="INFO",
+                            error_message="SQL generated but not executed (CSV data source)",
+                            generated_sql=sql_script,
+                            details={'note': 'Use database connector to execute SQL'}
+                        )
+                    
+                    validation_results.append(validation_result)
+                    
+                except Exception as rule_error:
+                    console.print(f"❌ [red]Error processing rule '{rule.name}': {str(rule_error)}[/red]")
+                    validation_results.append(ValidationResult(
+                        rule_name=rule.name,
+                        rule_id=rule.id,
+                        status="ERROR",
+                        error_message=str(rule_error)
+                    ))
+                
+                progress.advance(task)
         
         # Display results
-        display_validation_results_simple(summary.results)
+        display_sql_validation_results(validation_results)
         
-        # Generate and display summary
-        display_validation_summary_simple(summary)
-        
-        # Ask to save results
-        if Confirm.ask("Save results to file?"):
-            save_validation_results_simple(summary, table_name)
+        # Ask to save SQL scripts
+        if Confirm.ask("Save generated SQL scripts to file?"):
+            save_sql_scripts(validation_results, table_name)
         
     except Exception as e:
         console.print(f"❌ [red]Validation execution failed: {str(e)}[/red]")
         import traceback
         console.print(f"[red]Details: {traceback.format_exc()}[/red]")
 
-def display_validation_results_simple(results):
-    """Display validation results in a nice table"""
-    
-    table = Table(title="🎯 Validation Results")
-    table.add_column("Rule Name", style="cyan", width=25)
-    table.add_column("Status", style="bold", width=8)
-    table.add_column("Total Rows", style="magenta", justify="right")
-    table.add_column("Failed", style="red", justify="right")
-    table.add_column("Details", style="dim", width=30)
+def display_sql_validation_results(results: List[ValidationResult]):
+    """Display SQL validation results with generated scripts"""
+    console.print("\n📋 [bold blue]Validation Results[/bold blue]")
     
     for result in results:
-        # Status with emoji
-        if result.status.value == "passed":
-            status = "✅ PASS"
-        elif result.status.value == "failed":
-            status = "❌ FAIL"
-        else:
-            status = "🚨 WARN"
+        status_color = "green" if result.status == "PASS" else "red" if result.status == "FAIL" else "yellow"
+        status_icon = "✅" if result.status == "PASS" else "❌" if result.status == "FAIL" else "⚠️"
         
-        # Details
-        details = result.message[:30] + "..." if len(result.message) > 30 else result.message
+        console.print(f"\n{status_icon} [bold]{result.rule_name}[/bold]")
+        console.print(f"   Status: [{status_color}]{result.status}[/{status_color}]")
         
-        table.add_row(
-            result.rule_name,
-            status,
-            str(result.total_count),
-            str(result.failed_count),
-            details
-        )
-    
-    console.print(table)
+        if result.total_rows > 0:
+            console.print(f"   Total Rows: {result.total_rows}")
+            console.print(f"   Failed Rows: {result.failed_rows}")
+            console.print(f"   Passed Rows: {result.passed_rows}")
+        
+        if result.error_message:
+            console.print(f"   Error: [red]{result.error_message}[/red]")
+        
+        # Show generated SQL
+        if result.generated_sql:
+            console.print("   [bold cyan]Generated SQL:[/bold cyan]")
+            # Create a panel with the SQL code
+            sql_panel = Panel(
+                Syntax(result.generated_sql, "sql", theme="monokai", line_numbers=True),
+                title="SQL Script",
+                border_style="cyan"
+            )
+            console.print(sql_panel)
 
-def display_validation_summary_simple(summary):
-    """Display validation summary"""
-    
-    total_rules = summary.total_rules
-    passed_rules = summary.passed_rules
-    failed_rules = summary.failed_rules
-    warning_rules = summary.warning_rules
-    
-    success_rate = (passed_rules / total_rules * 100) if total_rules > 0 else 0
-    
-    summary_panel = f"""
-[bold]Validation Summary[/bold]
-⏱️  Total rules executed: {total_rules}
-✅ Passed: {passed_rules}
-❌ Failed: {failed_rules}
-⚠️  Warnings: {warning_rules}
-📈 Success rate: {success_rate:.1f}%
-    """
-    
-    console.print(Panel(summary_panel, title="🎯 Summary", border_style="green"))
-
-def save_validation_results_simple(summary, table_name: str):
-    """Save validation results to file"""
-    
-    from datetime import datetime
+def save_sql_scripts(results: List[ValidationResult], table_name: str):
+    """Save generated SQL scripts to files"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"outputs/validation_results_{table_name}_{timestamp}.json"
     
-    Path("outputs").mkdir(exist_ok=True)
+    # Create outputs directory if it doesn't exist
+    outputs_dir = Path("outputs")
+    outputs_dir.mkdir(exist_ok=True)
     
-    output_data = {
-        "table_name": table_name,
-        "execution_timestamp": datetime.now().isoformat(),
-        "summary": {
-            "total_rules": summary.total_rules,
-            "passed_rules": summary.passed_rules,
-            "failed_rules": summary.failed_rules,
-            "warning_rules": summary.warning_rules
-        },
-        "detailed_results": [
+    # Save individual SQL files
+    for i, result in enumerate(results):
+        if result.generated_sql:
+            sql_filename = f"validation_sql_{table_name}_{result.rule_name.replace(' ', '_')}_{timestamp}.sql"
+            sql_path = outputs_dir / sql_filename
+            
+            with open(sql_path, 'w') as f:
+                f.write(f"-- Validation Rule: {result.rule_name}\n")
+                f.write(f"-- Generated on: {datetime.now().isoformat()}\n")
+                f.write(f"-- Table: {table_name}\n")
+                f.write(f"-- Status: {result.status}\n\n")
+                f.write(result.generated_sql)
+            
+            console.print(f"💾 SQL script saved: {sql_path}")
+    
+    # Save combined results JSON
+    results_data = {
+        'table_name': table_name,
+        'generation_timestamp': timestamp,
+        'total_rules': len(results),
+        'results': [
             {
-                "rule_name": r.rule_name,
-                "status": r.status.value,
-                "total_count": r.total_count,
-                "failed_count": r.failed_count,
-                "message": r.message,
-                "details": r.details
+                'rule_name': r.rule_name,
+                'status': r.status,
+                'total_rows': r.total_rows,
+                'failed_rows': r.failed_rows,
+                'passed_rows': r.passed_rows,
+                'error_message': r.error_message,
+                'generated_sql': r.generated_sql
             }
-            for r in summary.results
+            for r in results
         ]
     }
     
-    with open(output_file, 'w') as f:
-        json.dump(output_data, f, indent=2, default=str)
+    json_filename = f"sql_validation_results_{table_name}_{timestamp}.json"
+    json_path = outputs_dir / json_filename
     
-    console.print(f"💾 [green]Results saved to: {output_file}[/green]")
-
-if __name__ == "__main__":
-    cli()
+    with open(json_path, 'w') as f:
+        json.dump(results_data, f, indent=2, default=str)
+    
+    console.print(f"💾 Results saved: {json_path}")
