@@ -22,8 +22,8 @@ class ColumnInfo(BaseModel):
     sample_values: List[Any] = []
     unique_count: Optional[int] = None
     null_count: Optional[int] = None
-    min_value: Optional[Union[int, float, str]] = None
-    max_value: Optional[Union[int, float, str]] = None
+    min_value: Optional[Union[int, float, str, datetime]] = None
+    max_value: Optional[Union[int, float, str, datetime]] = None
 
 class DataSourceConfig(BaseModel):
     type: DataSourceType
@@ -31,6 +31,7 @@ class DataSourceConfig(BaseModel):
     connection_params: Dict[str, Any] = {}
     file_path: Optional[str] = None
     table_name: Optional[str] = None
+    table_info: Optional[Dict[str, List[ColumnInfo]]] = None  # Store all tables info for cross-table rules
 
 class ValidationRule(BaseModel):
     id: Optional[str] = None

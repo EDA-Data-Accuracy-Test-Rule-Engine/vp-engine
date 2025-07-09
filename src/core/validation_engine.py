@@ -196,33 +196,40 @@ SELECT
         params = rule.get('parameters', {})
         table1 = params.get('table1')
         table2 = params.get('table2')
-        function = params.get('statistical_function', StatisticalFunction.AVG)
-        operator = params.get('comparison_operator', ComparisonOperator.EQUAL)
+        function = params.get('function', 'COUNT_DISTINCT')  # Use the function from parameters
+        operator = params.get('comparison_operator', '=')
         
-        table1_ref = f"{table1.get('schema_name', '')}.{table1['table']}" if table1.get('schema_name') else table1['table']
-        table2_ref = f"{table2.get('schema_name', '')}.{table2['table']}" if table2.get('schema_name') else table2['table']
+        table1_ref = f"{table1.get('schema', 'public')}.{table1['table']}"
+        table2_ref = f"{table2.get('schema', 'public')}.{table2['table']}"
         
-        column1 = table1['columns'][0]
-        column2 = table2['columns'][0]
+        # Handle both new format (columns array) and old format (column string)
+        if 'columns' in table1:
+            column1 = table1['columns'][0]
+        else:
+            column1 = table1.get('column', rule['target_column'])
+            
+        if 'columns' in table2:
+            column2 = table2['columns'][0]
+        else:
+            column2 = table2.get('column', rule['target_column'])
         
-        # Fix PostgreSQL function name
-        if function == StatisticalFunction.COUNT_DISTINCT:
+        # Generate function SQL
+        if function == 'COUNT_DISTINCT':
             function_sql1 = f"COUNT(DISTINCT {column1})"
             function_sql2 = f"COUNT(DISTINCT {column2})"
         else:
             function_sql1 = f"{function}({column1})"
             function_sql2 = f"{function}({column2})"
         
-        sql = f"""
-WITH stats1 AS (
+        sql = f"""WITH stats1 AS (
     SELECT {function_sql1} as stat_value
     FROM {table1_ref}
-    {f"WHERE {table1.get('filter_condition')}" if table1.get('filter_condition') else ""}
+    {f"WHERE {table1.get('filter')}" if table1.get('filter') else ""}
 ),
 stats2 AS (
     SELECT {function_sql2} as stat_value
     FROM {table2_ref}
-    {f"WHERE {table2.get('filter_condition')}" if table2.get('filter_condition') else ""}
+    {f"WHERE {table2.get('filter')}" if table2.get('filter') else ""}
 ),
 comparison AS (
     SELECT 
@@ -242,8 +249,7 @@ SELECT
     status,
     table1_stat,
     table2_stat
-FROM comparison;
-"""
+FROM comparison;"""
         return sql.strip()
     
     def _generate_different_statistical_comparison_sql(self, rule: Dict[str, Any]) -> str:
@@ -251,33 +257,42 @@ FROM comparison;
         params = rule.get('parameters', {})
         table1 = params.get('table1')
         table2 = params.get('table2')
-        function1 = params.get('statistical_function1', StatisticalFunction.SUM)
-        function2 = params.get('statistical_function2', StatisticalFunction.AVG)
-        operator = params.get('comparison_operator', ComparisonOperator.EQUAL)
+        operator = params.get('comparison_operator', '=')
         
-        table1_ref = f"{table1.get('schema_name', '')}.{table1['table']}" if table1.get('schema_name') else table1['table']
-        table2_ref = f"{table2.get('schema_name', '')}.{table2['table']}" if table2.get('schema_name') else table2['table']
+        table1_ref = f"{table1.get('schema', 'public')}.{table1['table']}"
+        table2_ref = f"{table2.get('schema', 'public')}.{table2['table']}"
         
-        columns1 = table1['columns']
-        columns2 = table2['columns']
+        # Handle both new format (columns array) and old format (column string)  
+        if 'columns' in table1:
+            columns1 = table1['columns']
+        else:
+            columns1 = [table1.get('column', rule['target_column'])]
+            
+        if 'columns' in table2:
+            columns2 = table2['columns']
+        else:
+            columns2 = [table2.get('column', rule['target_column'])]
         
+        function1 = table1.get('function', 'SUM')
+        function2 = table2.get('function', 'SUM')
+        
+        # Generate column expressions
         if len(columns1) > 1:
-            columns1_expr = " + ".join([f"{function1}({col})" for col in columns1])
+            columns1_expr = f"({' + '.join([f'{function1}({col})' for col in columns1])})"
         else:
             columns1_expr = f"{function1}({columns1[0]})"
             
         columns2_expr = f"{function2}({columns2[0]})"
         
-        sql = f"""
-WITH stats1 AS (
-    SELECT ({columns1_expr}) as stat_value
+        sql = f"""WITH stats1 AS (
+    SELECT {columns1_expr} as stat_value
     FROM {table1_ref}
-    {f"WHERE {table1.get('filter_condition')}" if table1.get('filter_condition') else ""}
+    WHERE {table1.get('filter', '1=1')}
 ),
 stats2 AS (
     SELECT {columns2_expr} as stat_value
     FROM {table2_ref}
-    {f"WHERE {table2.get('filter_condition')}" if table2.get('filter_condition') else ""}
+    WHERE {table2.get('filter', '1=1')}
 ),
 comparison AS (
     SELECT 
@@ -297,8 +312,7 @@ SELECT
     status,
     table1_stat,
     table2_stat
-FROM comparison;
-"""
+FROM comparison;"""
         return sql.strip()
     
     def generate_complex_rule_sql(self, complex_rule: ComplexRule) -> str:

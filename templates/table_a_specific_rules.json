@@ -1,0 +1,116 @@
+{
+  "name": "Table A Validation Rules",
+  "description": "Validation rules specifically for table_a columns",
+  "data_source": {
+    "type": "postgresql",
+    "name": "postgresql_vpengine",
+    "connection_params": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "vpengine",
+      "username": "vpuser",
+      "password": "vppass123"
+    }
+  },
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Amount Range Validation",
+      "description": "Validate amount is within reasonable range (100-50000)",
+      "rule_type": "value_range",
+      "target_column": "amount",
+      "parameters": {
+        "min_value": 100,
+        "max_value": 50000
+      },
+      "severity": "error",
+      "enabled": true,
+      "created_by": "system",
+      "created_at": "2025-07-09T10:00:00"
+    },
+    {
+      "id": "rule_002", 
+      "name": "Branch Code Format Check",
+      "description": "Validate branch code follows pattern: 2-3 uppercase letters + 3 digits",
+      "rule_type": "value_template",
+      "target_column": "branch_code",
+      "parameters": {
+        "regex_pattern": "^[A-Z]{2,3}\\d{3}$"
+      },
+      "severity": "error",
+      "enabled": true,
+      "created_by": "system",
+      "created_at": "2025-07-09T10:00:00"
+    },
+    {
+      "id": "rule_003",
+      "name": "ID Sequence Continuity Check",
+      "description": "Validate ID sequence has no gaps (1,2,3,4,5...)",
+      "rule_type": "data_continuity",
+      "target_column": "id",
+      "parameters": {
+        "sequence_type": "incremental",
+        "start_value": 1,
+        "increment": 1
+      },
+      "severity": "warning",
+      "enabled": true,
+      "created_by": "system",
+      "created_at": "2025-07-09T10:00:00"
+    },
+    {
+      "id": "rule_004",
+      "name": "Branch Code Consistency Between Tables",
+      "description": "Compare distinct branch codes between table_a and table_b",
+      "rule_type": "same_statistical_comparison",
+      "target_column": "branch_code",
+      "parameters": {
+        "function": "COUNT_DISTINCT",
+        "table1": {
+          "schema": "public",
+          "table": "table_a",
+          "columns": ["branch_code"]
+        },
+        "table2": {
+          "schema": "public", 
+          "table": "table_b",
+          "columns": ["branch_code"]
+        },
+        "comparison_operator": "="
+      },
+      "severity": "error",
+      "enabled": true,
+      "created_by": "system",
+      "created_at": "2025-07-09T10:00:00"
+    },
+    {
+      "id": "rule_005",
+      "name": "Amount vs Total Comparison",
+      "description": "Compare sum of amount in table_a vs sum of total in table_b",
+      "rule_type": "different_statistical_comparison",
+      "target_column": "amount",
+      "parameters": {
+        "table1": {
+          "schema": "public",
+          "table": "table_a",
+          "columns": ["amount"],
+          "function": "SUM",
+          "filter": "amount IS NOT NULL"
+        },
+        "table2": {
+          "schema": "public",
+          "table": "table_b", 
+          "columns": ["total"],
+          "function": "SUM",
+          "filter": "total IS NOT NULL"
+        },
+        "comparison_operator": "="
+      },
+      "severity": "warning",
+      "enabled": true,
+      "created_by": "system",
+      "created_at": "2025-07-09T10:00:00"
+    }
+  ],
+  "created_at": "2025-07-09T10:00:00"
+}

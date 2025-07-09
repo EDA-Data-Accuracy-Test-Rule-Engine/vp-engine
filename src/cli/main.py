@@ -45,42 +45,88 @@ def start():
     console.print("\n🎯 [bold green]Welcome to VP Data Accuracy Engine![/bold green]")
     console.print("Let's start by connecting to your data source...\n")
     
-    # Step 1: Data Source Selection
-    data_source_config = select_data_source()
-    if not data_source_config:
-        console.print("❌ [red]No data source selected. Exiting...[/red]")
-        return
+    # Main workflow loop - allows restarting from Step 2
+    while True:
+        # Step 1: Data Source Selection
+        data_source_config = select_data_source()
+        if not data_source_config:
+            console.print("❌ [red]No data source selected. Exiting...[/red]")
+            return
+        
+        # Step 2: Connect and analyze data source
+        connector = connect_to_data_source(data_source_config)
+        if not connector:
+            console.print("❌ [red]Failed to connect to data source. Exiting...[/red]")
+            return
+        
+        # Inner loop for table selection and validation workflow
+        while True:
+            # Step 3: Show tables and columns
+            table_result = select_table_and_show_columns(connector, data_source_config)
+            if table_result == "back":
+                break  # Go back to data source selection
+            elif not table_result:
+                console.print("❌ [red]No table selected. Exiting...[/red]")
+                return
+            
+            table_name = table_result
+            
+            # Step 4: User action selection
+            action = select_user_action()
+            if action == "back":
+                continue  # Go back to table selection
+            
+            # Step 5: Execute based on user choice
+            rule_set = None
+            if action == "1":  # AI suggestion
+                rule_set = handle_ai_suggestion(connector, data_source_config, table_name)
+            elif action == "2":  # Use existing rules
+                rule_set = handle_existing_rules(data_source_config, table_name)
+            elif action == "3":  # Create new rules
+                rule_set = handle_create_new_rules(data_source_config, table_name)
+            
+            if not rule_set:
+                console.print("❌ [red]No rules were created or selected.[/red]")
+                if not Confirm.ask("Would you like to try again?"):
+                    return
+                continue  # Go back to action selection
+            
+            # Step 6: Execute validation
+            execute_validation_workflow(connector, rule_set, table_name)
+            
+            # Step 7: Ask what to do next
+            next_action = ask_next_action()
+            if next_action == "restart":
+                break  # Break inner loop to restart from Step 2 (table selection)
+            elif next_action == "new_source":
+                break  # Break inner loop to go back to data source selection
+            elif next_action == "exit":
+                console.print("\n👋 [bold blue]Thank you for using VP Data Accuracy Engine![/bold blue]")
+                return
+        
+        # If we broke out of inner loop due to "new_source", continue outer loop
+        # If we broke out due to "restart", continue inner loop (but outer loop will restart inner loop)
+        if next_action == "new_source":
+            continue
+        elif next_action == "restart":
+            continue
+
+def ask_next_action() -> str:
+    """Ask user what they want to do after completing validation"""
     
-    # Step 2: Connect and analyze data source
-    connector = connect_to_data_source(data_source_config)
-    if not connector:
-        console.print("❌ [red]Failed to connect to data source. Exiting...[/red]")
-        return
+    console.print(f"\n🎯 [bold cyan]What would you like to do next?[/bold cyan]")
+    console.print("  1. 🔄 Restart with different table (same database)")
+    console.print("  2. 🔌 Connect to different data source")
+    console.print("  3. 🚪 Exit application")
     
-    # Step 3: Show tables and columns
-    table_name = select_table_and_show_columns(connector, data_source_config)
-    if not table_name:
-        console.print("❌ [red]No table selected. Exiting...[/red]")
-        return
+    choice = Prompt.ask("\nEnter your choice", choices=["1", "2", "3"])
     
-    # Step 4: User action selection
-    action = select_user_action()
-    
-    # Step 5: Execute based on user choice
-    rule_set = None
-    if action == "1":  # AI suggestion
-        rule_set = handle_ai_suggestion(connector, data_source_config, table_name)
-    elif action == "2":  # Use existing rules
-        rule_set = handle_existing_rules(data_source_config, table_name)
-    elif action == "3":  # Create new rules
-        rule_set = handle_create_new_rules(data_source_config, table_name)
-    
-    if not rule_set:
-        console.print("❌ [red]No rules were created or selected. Exiting...[/red]")
-        return
-    
-    # Step 6: Execute validation
-    execute_validation_workflow(connector, rule_set, table_name)
+    if choice == "1":
+        return "restart"
+    elif choice == "2":
+        return "new_source"
+    else:
+        return "exit"
 
 def select_data_source() -> Optional[DataSourceConfig]:
     """Step 1: Let user select data source type"""
@@ -90,10 +136,13 @@ def select_data_source() -> Optional[DataSourceConfig]:
     console.print("  1. PostgreSQL Database")
     console.print("  2. MySQL Database") 
     console.print("  3. CSV File")
+    console.print("  0. ⬅️  Exit")
     
-    choice = Prompt.ask("\nEnter your choice", choices=["1", "2", "3"])
+    choice = Prompt.ask("\nEnter your choice", choices=["0", "1", "2", "3"])
     
-    if choice == "1":
+    if choice == "0":
+        return None
+    elif choice == "1":
         return configure_postgresql()
     elif choice == "2":
         return configure_mysql()
@@ -188,10 +237,10 @@ def connect_to_data_source(config: DataSourceConfig):
         console.print(f"❌ [red]Connection error: {str(e)}[/red]")
         return None
 
-def select_table_and_show_columns(connector, config: DataSourceConfig) -> Optional[str]:
+def select_table_and_show_columns(connector, config: DataSourceConfig):
     """Step 3: Show tables and let user select, then show columns"""
     
-    console.print("\n📋 [bold cyan]Step 3: Available Tables and Columns[/bold cyan]")
+    console.print("\n📋 [bold cyan]Step 3: Database Schema Overview[/bold cyan]")
     
     try:
         tables = connector.get_tables()
@@ -200,34 +249,60 @@ def select_table_and_show_columns(connector, config: DataSourceConfig) -> Option
             console.print("❌ [red]No tables found in the data source[/red]")
             return None
         
+        # Show all tables with their structure first
+        console.print(f"📊 [bold green]Found {len(tables)} tables in database:[/bold green]")
+        
+        all_tables_info = {}
+        for table in tables:
+            try:
+                columns = connector.get_columns(table)
+                all_tables_info[table] = columns
+                console.print(f"\n🗂️  [bold]{table}[/bold] ({len(columns)} columns)")
+                column_names = [col.name for col in columns[:5]]  # Show first 5 columns
+                if len(columns) > 5:
+                    column_names.append("...")
+                console.print(f"   Columns: {', '.join(column_names)}")
+            except Exception:
+                console.print(f"\n🗂️  [bold]{table}[/bold] (unable to read columns)")
+        
+        console.print(f"\n💡 [yellow]For cross-table comparison rules (type 4 & 5), you can select any primary table.[/yellow]")
+        console.print(f"   [yellow]The system will automatically detect related tables during rule execution.[/yellow]")
+        
+        # Let user choose primary table for validation
         if len(tables) == 1:
-            table_name = tables[0]
-            console.print(f"📊 Found table: [bold]{table_name}[/bold]")
+            primary_table = tables[0]
+            console.print(f"\n📊 Selected primary table: [bold]{primary_table}[/bold]")
         else:
-            console.print("Available tables:")
+            console.print(f"\n📋 [bold cyan]Select Primary Table for Validation:[/bold cyan]")
             for i, table in enumerate(tables, 1):
                 console.print(f"  {i}. {table}")
+            console.print(f"  0. ⬅️  Back to data source selection")
             
             while True:
                 try:
-                    choice = int(Prompt.ask(f"\nSelect table (1-{len(tables)})"))
-                    if 1 <= choice <= len(tables):
-                        table_name = tables[choice - 1]
+                    choice = Prompt.ask(f"\nSelect primary table (0-{len(tables)})")
+                    
+                    if choice == "0":
+                        return "back"
+                    
+                    choice_int = int(choice)
+                    if 1 <= choice_int <= len(tables):
+                        primary_table = tables[choice_int - 1]
                         break
                     else:
-                        console.print(f"❌ [red]Please enter a number between 1 and {len(tables)}[/red]")
+                        console.print(f"❌ [red]Please enter a number between 0 and {len(tables)}[/red]")
                 except ValueError:
                     console.print("❌ [red]Please enter a valid number[/red]")
         
-        with console.status(f"Analyzing columns in {table_name}..."):
-            columns = connector.get_columns(table_name)
+        # Display detailed info for selected table
+        if primary_table in all_tables_info:
+            console.print(f"\n📊 [bold cyan]Detailed Analysis for {primary_table}:[/bold cyan]")
+            display_column_info(all_tables_info[primary_table])
         
-        if columns:
-            display_column_info(columns)
-        else:
-            console.print("❌ [red]Could not retrieve column information[/red]")
+        # Store table info for cross-table rules
+        config.table_info = all_tables_info
         
-        return table_name
+        return primary_table
         
     except Exception as e:
         console.print(f"❌ [red]Error getting table information: {str(e)}[/red]")
@@ -268,8 +343,14 @@ def select_user_action() -> str:
     console.print("  1. 🤖 Get AI-powered rule suggestions")
     console.print("  2. 📚 Use existing rule templates")
     console.print("  3. ✏️  Create new custom rules")
+    console.print("  0. ⬅️  Back to table selection")
     
-    return Prompt.ask("\nEnter your choice", choices=["1", "2", "3"])
+    choice = Prompt.ask("\nEnter your choice", choices=["0", "1", "2", "3"])
+    
+    if choice == "0":
+        return "back"
+    
+    return choice
 
 def handle_ai_suggestion(connector, config: DataSourceConfig, table_name: str) -> Optional[RuleSet]:
     """Handle AI rule suggestion workflow"""
@@ -278,7 +359,7 @@ def handle_ai_suggestion(connector, config: DataSourceConfig, table_name: str) -
     console.print("Analyzing your data to suggest validation rules...")
     
     try:
-        # Get column information and sample data
+        # Get column information and sample data for primary table
         with console.status("Analyzing data patterns..."):
             columns = connector.get_columns(table_name)
             sample_df = connector.get_sample_data(table_name, limit=100)
@@ -292,15 +373,16 @@ def handle_ai_suggestion(connector, config: DataSourceConfig, table_name: str) -
             if col.name in sample_df.columns:
                 sample_data[col.name] = sample_df[col.name].dropna().tolist()[:10]
         
-        # Get AI suggestions
+        # Get AI suggestions for single-table rules
         with console.status("Getting AI recommendations..."):
             suggestions = ai_engine.suggest_rules_for_dataset(columns, sample_data)
         
-        # Display suggestions
+        all_rules = []
+        
+        # Process single-table rule suggestions
         if suggestions:
-            console.print(f"\n📋 [bold green]AI suggested {len(suggestions)} validation rules:[/bold green]")
+            console.print(f"\n📋 [bold green]AI suggested {len(suggestions)} single-table validation rules:[/bold green]")
             
-            all_rules = []
             for suggestion in suggestions:
                 if suggestion.suggested_rules:
                     console.print(f"\n📊 [bold cyan]Column: {suggestion.column_name}[/bold cyan]")
@@ -314,20 +396,35 @@ def handle_ai_suggestion(connector, config: DataSourceConfig, table_name: str) -
                         if rule.parameters:
                             console.print(f"    Parameters: {rule.parameters}")
                         all_rules.append(rule)
+        
+        # Auto-generate cross-table rules if multiple tables available
+        if hasattr(config, 'table_info') and config.table_info and len(config.table_info) > 1:
+            console.print(f"\n🔗 [bold yellow]Detecting Cross-Table Relationship Rules...[/bold yellow]")
             
+            cross_table_rules = generate_cross_table_rules(config.table_info, table_name)
+            if cross_table_rules:
+                console.print(f"🎯 [bold green]Found {len(cross_table_rules)} potential cross-table rules:[/bold green]")
+                for rule in cross_table_rules:
+                    console.print(f"  • {rule.name} ({rule.rule_type.value})")
+                    console.print(f"    {rule.description}")
+                
+                if Confirm.ask("Include cross-table rules in the suggestion?"):
+                    all_rules.extend(cross_table_rules)
+        
+        if all_rules:
             # Save suggestions to JSON file
             suggested_file = f"templates/ai_suggestions_{table_name}.json"
             Path("templates").mkdir(exist_ok=True)
             
             rule_set = RuleSet(
                 name=f"AI Suggested Rules for {table_name}",
-                description="Rules generated by AI analysis",
+                description="Rules generated by AI analysis including cross-table relationships",
                 data_source=config,
                 rules=all_rules
             )
             
             with open(suggested_file, 'w') as f:
-                rule_data = rule_set.dict()
+                rule_data = rule_set.model_dump()
                 # Convert datetime to string for JSON serialization
                 rule_data['created_at'] = rule_data['created_at'].isoformat()
                 for rule in rule_data['rules']:
@@ -348,6 +445,92 @@ def handle_ai_suggestion(connector, config: DataSourceConfig, table_name: str) -
     except Exception as e:
         console.print(f"❌ [red]AI suggestion failed: {str(e)}[/red]")
         return None
+
+def generate_cross_table_rules(table_info: Dict[str, List[ColumnInfo]], primary_table: str) -> List[ValidationRule]:
+    """Generate cross-table validation rules based on table relationships"""
+    
+    cross_table_rules = []
+    
+    # Get list of all tables
+    tables = list(table_info.keys())
+    
+    for other_table in tables:
+        if other_table == primary_table:
+            continue
+            
+        primary_columns = {col.name: col for col in table_info[primary_table]}
+        other_columns = {col.name: col for col in table_info[other_table]}
+        
+        # Find common columns for same statistical comparison
+        common_columns = set(primary_columns.keys()) & set(other_columns.keys())
+        
+        for common_col in common_columns:
+            if common_col in ['id', 'created_at', 'updated_at']:  # Skip system columns
+                continue
+                
+            # Same statistical comparison rule
+            rule = ValidationRule(
+                name=f"{common_col.title()} Consistency Check",
+                description=f"Compare distinct {common_col} values between {primary_table} and {other_table}",
+                rule_type=RuleType.SAME_STATISTICAL_COMPARISON,
+                target_column=common_col,
+                parameters={
+                    "function": "COUNT_DISTINCT",
+                    "table1": {
+                        "schema": "public",
+                        "table": primary_table,
+                        "column": common_col
+                    },
+                    "table2": {
+                        "schema": "public", 
+                        "table": other_table,
+                        "column": common_col
+                    },
+                    "comparison_operator": "="
+                },
+                severity="error",
+                enabled=True
+            )
+            cross_table_rules.append(rule)
+        
+        # Look for amount/value columns for different statistical comparison
+        amount_patterns = ['amount', 'value', 'price', 'cost', 'total', 'sum']
+        
+        primary_amount_cols = [col for col in primary_columns.keys() 
+                              if any(pattern in col.lower() for pattern in amount_patterns)]
+        other_amount_cols = [col for col in other_columns.keys() 
+                            if any(pattern in col.lower() for pattern in amount_patterns)]
+        
+        if primary_amount_cols and other_amount_cols:
+            # Create different statistical comparison rule
+            rule = ValidationRule(
+                name=f"{primary_table.title()} vs {other_table.title()} Amount Validation",
+                description=f"Compare total amounts between {primary_table} and {other_table}",
+                rule_type=RuleType.DIFFERENT_STATISTICAL_COMPARISON,
+                target_column=primary_amount_cols[0],
+                parameters={
+                    "table1": {
+                        "schema": "public",
+                        "table": primary_table,
+                        "column": primary_amount_cols[0],
+                        "function": "SUM",
+                        "filter": f"{primary_amount_cols[0]} IS NOT NULL"
+                    },
+                    "table2": {
+                        "schema": "public",
+                        "table": other_table, 
+                        "column": other_amount_cols[0],
+                        "function": "SUM",
+                        "filter": f"{other_amount_cols[0]} IS NOT NULL"
+                    },
+                    "comparison_operator": "="
+                },
+                severity="warning",
+                enabled=True
+            )
+            cross_table_rules.append(rule)
+    
+    return cross_table_rules
 
 def handle_existing_rules(config: DataSourceConfig, table_name: str) -> Optional[RuleSet]:
     """Handle existing rules selection workflow"""
@@ -375,20 +558,28 @@ def handle_existing_rules(config: DataSourceConfig, table_name: str) -> Optional
             
             name = rule_data.get('name', file_path.stem)
             rule_count = len(rule_data.get('rules', []))
+            description = rule_data.get('description', 'No description')
             
             console.print(f"  {i}. {file_path.name} - {name} ({rule_count} rules)")
         except Exception:
             console.print(f"  {i}. {file_path.name} - [red](Invalid file)[/red]")
     
+    console.print(f"  0. ⬅️  Back to action selection")
+    
     # Let user select
     while True:
         try:
-            choice = int(Prompt.ask(f"\nSelect rule file (1-{len(rule_files)})"))
-            if 1 <= choice <= len(rule_files):
-                selected_file = rule_files[choice - 1]
+            choice = Prompt.ask(f"\nSelect rule file (0-{len(rule_files)})")
+            
+            if choice == "0":
+                return None
+            
+            choice_int = int(choice)
+            if 1 <= choice_int <= len(rule_files):
+                selected_file = rule_files[choice_int - 1]
                 break
             else:
-                console.print(f"❌ [red]Please enter a number between 1 and {len(rule_files)}[/red]")
+                console.print(f"❌ [red]Please enter a number between 0 and {len(rule_files)}[/red]")
         except ValueError:
             console.print("❌ [red]Please enter a valid number[/red]")
     
