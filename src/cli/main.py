@@ -716,3 +716,6 @@ def save_sql_scripts(results: List[ValidationResult], table_name: str):
         json.dump(results_data, f, indent=2, default=str)
     
     console.print(f"💾 Results saved: {json_path}")
+
+if __name__ == "__main__":
+    cli()

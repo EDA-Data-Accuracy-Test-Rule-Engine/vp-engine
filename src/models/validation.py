@@ -44,6 +44,12 @@ class ValidationRule(BaseModel):
     created_by: str = "system"
     created_at: datetime = Field(default_factory=datetime.now)
 
+class AIRuleSuggestion(BaseModel):
+    column_name: str
+    suggested_rules: List[ValidationRule]
+    confidence_score: float
+    reasoning: str
+
 class RuleSet(BaseModel):
     name: str
     description: Optional[str] = None

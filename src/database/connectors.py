@@ -128,7 +128,21 @@ class PostgreSQLConnector(DatabaseConnector):
     def execute_query(self, query: str) -> pd.DataFrame:
         """Execute PostgreSQL query"""
         try:
-            return pd.read_sql_query(query, self.engine)
+            # Fix for SQLAlchemy immutabledict issue
+            with self.engine.connect() as conn:
+                result = conn.execute(text(query))
+                # Convert to list of dicts to avoid immutabledict issues
+                rows = []
+                for row in result:
+                    # Convert immutabledict to regular dict
+                    row_dict = dict(row._mapping) if hasattr(row, '_mapping') else dict(row)
+                    rows.append(row_dict)
+                
+                # Create DataFrame from list of dicts
+                if rows:
+                    return pd.DataFrame(rows)
+                else:
+                    return pd.DataFrame()
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
             raise

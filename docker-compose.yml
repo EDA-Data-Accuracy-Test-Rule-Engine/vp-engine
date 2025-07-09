@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/postgres_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+      - ./scripts/hackathon_postgres_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vpuser -d vpengine"]
       interval: 30s
@@ -33,7 +33,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./scripts/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+      - ./scripts/hackathon_mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "vpuser", "-pvppass123"]
       interval: 30s

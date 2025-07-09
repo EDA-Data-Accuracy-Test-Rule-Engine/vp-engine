@@ -205,14 +205,22 @@ SELECT
         column1 = table1['columns'][0]
         column2 = table2['columns'][0]
         
+        # Fix PostgreSQL function name
+        if function == StatisticalFunction.COUNT_DISTINCT:
+            function_sql1 = f"COUNT(DISTINCT {column1})"
+            function_sql2 = f"COUNT(DISTINCT {column2})"
+        else:
+            function_sql1 = f"{function}({column1})"
+            function_sql2 = f"{function}({column2})"
+        
         sql = f"""
 WITH stats1 AS (
-    SELECT {function}({column1}) as stat_value
+    SELECT {function_sql1} as stat_value
     FROM {table1_ref}
     {f"WHERE {table1.get('filter_condition')}" if table1.get('filter_condition') else ""}
 ),
 stats2 AS (
-    SELECT {function}({column2}) as stat_value
+    SELECT {function_sql2} as stat_value
     FROM {table2_ref}
     {f"WHERE {table2.get('filter_condition')}" if table2.get('filter_condition') else ""}
 ),
